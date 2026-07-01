@@ -19,7 +19,7 @@ allowed-tools: read_file, write_file, bash, grep
 |:---------|:-----|:------|
 | 📝 **小说原文** | 任意 .txt / .md 短文 | 直接分析原文的句长、用词、节奏、描写偏好 |
 | 📋 **文风指南** | `通用知识/文风体系/*.md` | 已有的结构化风格说明，分析并标准化 |
-| 🗂️ **SillyTavern 世界书 JSON** | 肥腻文风V2.0.json | 提取 `content` 或 `comment` 字段中的风格描述 |
+| 🗂️ **SillyTavern 世界书 JSON** | 文风条目.json | 提取 `content` 或 `comment` 字段中的风格描述 |
 | 🎭 **角色卡开场白** | `设定/开场白.md` 的 first_mes | 从角色语气分析文风基准 |
 | 💬 **提示词描述** | 用户直接口述"我想要那种……的风格" | 直接纳入分析体系 |
 
