@@ -99,7 +99,8 @@ git clone https://github.com/zhuoming2026/SillyTavern-to-StoryCompiler.git
 │
 ├── 配置/                 ← 全局配置
 │   ├── config.json             ← 输出控制（字数/文风）
-│   └── user_profile.json       ← 用户身份
+│   ├── user_profile.json       ← 用户身份
+│   └── 扮演规则.md             ← 🆕 全局通用扮演规则（状态变量驱动）
 │
 ├── 技能/                 ← 🛠️ 自动化能力模块（8个）
 │
@@ -109,7 +110,7 @@ git clone https://github.com/zhuoming2026/SillyTavern-to-StoryCompiler.git
 │   └── rp-故事名/
 │       ├── 设定/         ← 世界观 + 角色
 │       ├── 风格/         ← 文风 + 范文 + 分析
-│       ├── 配置/         ← 故事级配置 + 扮演规则
+│       ├── 配置/         ← 故事级配置 + 扮演规则（参照 `配置/扮演规则.md` 通用规则）
 │       ├── 写作/         ← 小说章节 + 聊天记录
 │       └── 状态/         ← 实时追踪（世界/角色/事件）
 │
