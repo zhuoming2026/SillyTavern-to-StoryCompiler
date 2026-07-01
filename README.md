@@ -12,10 +12,10 @@
 
 ### 1. 下载客户端
 
-推荐 **DeepSeek-Reasonix** 客户端：
+推荐 **Reasonix Desktop** 桌面客户端：
 👉 [https://github.com/esengine/DeepSeek-Reasonix](https://github.com/esengine/DeepSeek-Reasonix)
 
-下载后解压，打开应用。
+推荐桌面客户端。理论上来说，不是必须 Reasonix，你可以用 Hermes 等 Agent，让它自适应就好了。但我不推荐一些自带审核的 Agent 工具，DDDD。
 
 ### 2. 打开项目
 
@@ -23,7 +23,7 @@
 git clone https://github.com/zhuoming2026/SillyTavern-to-StoryCompiler.git
 ```
 
-打开 DeepSeek-Reasonix → **工作目录选择** → 指向刚 clone 的文件夹 → 编辑 `reasonix.toml` 填入 API Key
+打开 Reasonix Desktop → **工作目录选择** → 指向刚 clone 的文件夹 → 编辑 `reasonix.toml` 填入 API Key
 
 ### 3. 跟 AI 说...
 
@@ -116,6 +116,17 @@ git clone https://github.com/zhuoming2026/SillyTavern-to-StoryCompiler.git
 └── 通用知识/             ← 🧠 跨故事知识库（文风、设定、体系等，可复用资产）
 ```
 
+### 🎬 两种创作模式
+
+在 `agent.md` 中定义了两个模式，你可以随时切换：
+
+| 模式 | 特点 | 适合谁 |
+|:-----|:------|:-------|
+| **🎬 导演模式**（默认） | 先出「规划」→ 你确认 → 再写正文 → 迭代修改 → 整理成章。每一步都有规划文档，精修细改。 | 想打磨文笔、控制剧情走向、追求质量的写作者 |
+| **⚡ 冒险模式** | 直接推剧情，不经过规划步骤。AI 实时引入 NPC、给出方向选项，你选方向就继续写。 | 想快速体验剧情、喜欢惊喜和探索感的玩家 |
+
+> 说 **"切换冒险模式"** 或 **"切换导演模式"** 即可随时切换，不需要重启会话。
+
 ---
 
 ## 🎬 使用演示
@@ -194,20 +205,9 @@ git clone https://github.com/zhuoming2026/SillyTavern-to-StoryCompiler.git
 
 这个项目目前还很粗糙，但它的核心理念是：**你不需要懂编程，只需要会跟 AI 聊天。**
 
-### 🎬 两种创作模式
-
-在 `agent.md` 中定义了两个模式，你可以随时切换：
-
-| 模式 | 特点 | 适合谁 |
-|:-----|:------|:-------|
-| **🎬 导演模式**（默认） | 先出「规划」→ 你确认 → 再写正文 → 迭代修改 → 整理成章。每一步都有规划文档，精修细改。 | 想打磨文笔、控制剧情走向、追求质量的写作者 |
-| **⚡ 冒险模式** | 直接推剧情，不经过规划步骤。AI 实时引入 NPC、给出方向选项，你选方向就继续写。 | 想快速体验剧情、喜欢惊喜和探索感的玩家 |
-
-> 说 **"切换冒险模式"** 或 **"切换导演模式"** 即可随时切换，不需要重启会话。
-
 ---
 
 ## 🙏 致谢
 
 - [**tavern-card-distiller**](https://github.com/leigegehaha/tavern-card-distiller) — 角色卡蒸馏工具，为角色卡解析提供了重要参考，如果你喜欢原汁原味的酒馆冒险模式可以试试这个项目。
-- [**双人成行 V7.0**](https://abysesaki.top/#optimize) — 优秀的角色扮演预设，启发了项目中的交互设计
+- [**双人成行 V7.0**](https://abysesaki.top/#optimize) — 优秀的角色扮演预设，从里面拿了一些提示词。
