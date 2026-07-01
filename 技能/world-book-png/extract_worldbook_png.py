@@ -81,7 +81,7 @@ def extract_entries(world_data, fmt):
 
 
 def classify_entries(entries):
-    cats = {'world': [], 'character': [], 'protagonist': [], 'style': [], 'other': []}
+    cats = {'world': [], 'character': [], 'protagonist': [], 'style': [], 'script': [], 'variable': [], 'other': []}
 
     for entry in entries:
         if not entry.get('enabled', True):
@@ -92,6 +92,18 @@ def classify_entries(entries):
         key_text = ' '.join(keys_raw).lower()
         content = (entry.get('content', '') or '').lower()
         c200 = content[:200]
+
+        # 前端脚本（EJS/JS/CSS）→ script，完全忽略
+        if '<%_' in c200 or 'ejs' in comment or '调色盘多阶段' in comment:
+            cats['script'].append(entry)
+            continue
+
+        # MVU 变量系统（状态栏/变量更新）
+        if any(w in comment for w in ['mvu_update', '变量列表', 'initvar', '变量更新规则',
+                                       '变量输出格式', '变量初始化']) or \
+           '<status_current_variables>' in c200:
+            cats['variable'].append(entry)
+            continue
 
         # 性癖类条目（keys 以"性癖"开头）→ other，不参与其他分类
         if any(k.startswith('性癖') for k in keys_raw):
@@ -169,6 +181,10 @@ def fallback_classify(cats, entries):
         'style': [
             lambda c, k, ct: any(w in ct[:200] for w in ['文风', '叙事', '格式', '描写风格', '写作风格']),
         ],
+        'variable': [
+            lambda c, k, ct: '<status_' in ct[:200],
+            lambda c, k, ct: any(w in ct[:200] for w in ['变量输出', '变量更新', '变量初始化']),
+        ],
     }
 
     moved = {cat: 0 for cat in fallback_rules}
@@ -195,7 +211,7 @@ def fallback_classify(cats, entries):
             remaining.append(entry)
 
     cats['other'] = remaining
-    for cat in ['character', 'protagonist', 'world', 'style']:
+    for cat in ['character', 'protagonist', 'world', 'style', 'variable']:
         if cats[cat]:
             cats[cat].sort(key=lambda e: e.get('insertion_order') if e.get('insertion_order') is not None else e.get('id', 0))
 
@@ -452,8 +468,10 @@ def gen_instructions(wc, cc):
         "5. 故事/rp-故事名/设定/世界背景.md",
         "6. 故事/rp-故事名/设定/角色.md",
         "7. 故事/rp-故事名/设定/主角.md",
-        "8. 故事/rp-故事名/设定/风格指南.md",
-        "9. 系统指令.md（本文件）",
+        "8. 故事/rp-故事名/设定/开场白.md",
+        "9. 故事/rp-故事名/设定/风格指南.md",
+        "10. 故事/rp-故事名/设定/状态变量.md",
+        "11. 系统指令.md（本文件）",
         "```", "",
         "## 叙事铁律", "",
         "1. **角色一致性**：所有角色严格遵循设定",
@@ -496,6 +514,35 @@ def gen_opening(first_mes="", mes_example="", entries=None):
 
     if not first_mes and not entries and not mes_example:
         lines.append("（角色卡中未提供开场白。）")
+    return '\n'.join(lines)
+
+
+def gen_variables(entries, update_rules=None):
+    """生成状态变量.md —— MVU 变量系统 + 更新规则 + 当前状态。"""
+    lines = ["# 📊 状态变量（MVU 系统）", "",
+             "> 从酒馆角色卡/世界书自动提取",
+             f"> 提取时间：{datetime.now():%Y-%m-%d %H:%M}", "",
+             "---", ""]
+
+    if entries:
+        lines += ["## 当前变量状态", ""]
+        for e in entries:
+            content = e.get('content', '') or ''
+            # 只输出实际数据部分（跳过 YAML 分隔符和标签）
+            data = re.sub(r'^---\s*\n', '', content)
+            data = re.sub(r'^<[^>]+>\s*\n', '', data)
+            lines += ["```yaml", data.strip(), "```", "", "---", ""]
+
+    if update_rules:
+        for e in update_rules:
+            lines += [f"## 变量更新规则", ""]
+            content = e.get('content', '') or ''
+            data = re.sub(r'^---\s*\n', '', content)
+            data = re.sub(r'^<[^>]+>\s*\n', '', data)
+            lines += ["```yaml", data.strip(), "```", "", "---", ""]
+
+    if not entries and not update_rules:
+        lines.append("（角色卡中未提供 MVU 变量系统。）")
     return '\n'.join(lines)
 
 
@@ -569,13 +616,25 @@ def main():
     # 开场白相关条目（从 entries 中筛选 comment/keys 含"开场白"的）
     opening_entries = [e for e in entries
                        if any(w in (e.get('comment','') or '').lower() for w in ['开场白', 'opening'])]
+
+    # MVU 变量：分离 数据条目 和 更新规则
+    var_data = [e for e in cats['variable']
+                if any(w in (e.get('comment','') or '').lower() for w in ['变量列表', 'initvar'])]
+    var_rules = [e for e in cats['variable']
+                 if any(w in (e.get('comment','') or '').lower() for w in ['mvu_update', '变量更新规则', '变量输出格式'])]
+
+    # 未分类条目中排除脚本（脚本不应进入任何产出文件）
+    other_non_script = [e for e in cats['other']
+                        if '<%_' not in (e.get('content','') or '')[:200]]
+
     files = {
-        '世界背景.md': gen_world(cats['world'] + cats['other'], desc[:1000] if desc else ''),
+        '世界背景.md': gen_world(cats['world'] + other_non_script, desc[:1000] if desc else ''),
         '角色.md':     gen_chars(cats['character']),
         '主角.md':     gen_protagonist(cats['protagonist'], user_info),
         '开场白.md':   gen_opening(card.get('first_mes',''), card.get('mes_example',''), opening_entries),
         '风格指南.md': gen_style(cats['style'], card.get('personality',''),
                                   card.get('mes_example','')),
+        '状态变量.md': gen_variables(var_data, var_rules),
         '系统指令.md': gen_instructions(len(cats['world']), len(cats['character'])),
     }
 

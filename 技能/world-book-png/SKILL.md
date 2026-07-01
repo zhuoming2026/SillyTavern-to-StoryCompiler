@@ -42,6 +42,7 @@ allowed-tools: read_file, write_file, bash
 ├── 角色.md                   ← 角色相关条目
 ├── 主角.md                   ← 主角信息（从角色卡描述或条目提取）
 ├── 风格指南.md               ← 创作规则、文风设定、对话样例
+├── 📊 状态变量.md            ← 🆕 MVU 变量系统（好感度/领地状态/攻略进度）
 └── 系统指令.md               ← AI 叙事核心指令
 ```
 
@@ -64,7 +65,10 @@ allowed-tools: read_file, write_file, bash
 | keys/comment 含「主角」「玩家」「player」「{{user}}」 | `主角.md` |
 | content 含 `name: {{user}}` | `主角.md` |
 | keys/comment 含「风格」「文风」「style」「八股」「格式」 | `风格指南.md` |
-| 其他未分类 | `世界背景.md` 附录 |
+| --- | --- | --- |
+| 🚫 content 含 `<%_`（EJS模板）或 comment 含 `EJS调色盘多阶段` | **忽略**（前端脚本，不输出） |
+| 📊 comment 含「mvu_update」「变量列表」「initvar」「变量更新规则」「变量输出格式」 | `状态变量.md` |
+| 📊 content 含 `<status_current_variables>` | `状态变量.md` |
 | ⭐ **兜底规则**：分类后若有空文件，对 `other` 条目做二次宽松匹配 | |
 
 ### 兜底二次匹配规则
@@ -80,6 +84,7 @@ allowed-tools: read_file, write_file, bash
 | `世界背景.md` | 含 `<世界观>` `<势力>` `<设定>` `<规则>` 标签 |
 | | 含 `世界名称` `世界类型` `核心设定` `地理环境` |
 | `风格指南.md` | 含 `文风` `叙事` `格式` `描写风格` `写作风格` |
+| `状态变量.md` | 含 `<status_` 或 `变量输出` `变量更新` `变量初始化` |
 
 内容中的关键词不作为分类依据，避免误分类（如性癖描述中提到的"角色"）。
 
