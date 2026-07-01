@@ -1,0 +1,21 @@
+# Git ignore for SillyTavern-to-StoryCompiler
+
+# NSFW 素材/参考文件 + 用户数据 - 不提交到 git
+# 本地配置（含个人路径），Reasonix 自动生成
+reasonix.toml
+reasonix.toml.example
+story/
+故事/
+.reasonix/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temp files
+*.tmp
+*~
