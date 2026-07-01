@@ -98,10 +98,12 @@ def classify_entries(entries):
             cats['other'].append(entry)
             continue
 
-        # 主角（严格，仅 comment/keys 明确指向）
-        if any(w in comment for w in ['主角', '玩家', 'player']) or \
-           any(w in key_text for w in ['主角', '玩家', 'player']) or \
-           any(w in c200[:50] for w in ['{{user}}的身份', '{{user}}角色设定', '主角的姓名', '主角的年龄']):
+        # 主角（comment/keys/content 明确指向）
+        is_protagonist = any(w in comment for w in ['主角', '玩家', 'player', '{{user}}']) or \
+                         any(w in key_text for w in ['主角', '玩家', 'player', '{{user}}']) or \
+                         any(w in c200[:100] for w in ['{{user}}的身份', '{{user}}角色设定', '主角的姓名', '主角的年龄']) or \
+                         ('name:  {{user}}' in c200[:100] or 'name: {{user}}' in c200[:100])
+        if is_protagonist:
             cats['protagonist'].append(entry)
             continue
 
@@ -112,9 +114,15 @@ def classify_entries(entries):
             cats['world'].append(entry)
             continue
 
-        # 角色（以 comment/keys 为准）
-        if any(w in comment for w in ['角色', 'character', 'npc', '人物', '人设']) or \
-           any(w in key_text for w in ['角色', 'character', 'npc', '人物', '人设']):
+        # 角色（comment/keys/content 为准）
+        is_character = any(w in comment for w in ['角色', 'character', 'npc', '人物', '人设']) or \
+                       any(w in key_text for w in ['角色', 'character', 'npc', '人物', '人设']) or \
+                       '<character_design_complex>' in c200 or \
+                       ('# sfw - 人物设定' in c200[:60] and 'name:' in c200[:100]) or \
+                       ('# 核心信息' in c200[:60] and 'name:' in c200[:100] and 'identities:' in c200[:200]) or \
+                       '角色档案:' in c200 or \
+                       ('基本信息:' in c200 and '姓名:' in c200[:100] and '性别:' in c200[:200])
+        if is_character:
             cats['character'].append(entry)
             continue
 
@@ -124,11 +132,12 @@ def classify_entries(entries):
             cats['style'].append(entry)
             continue
 
-        # 内容 HTML 标签
+        # 内容 HTML 标签 / 自定义标签
         matched = False
-        for tag, cat in [('<worldview>','world'),('<hierarchy>','world'),
-                         ('<character>','character'),('<npc>','character'),
-                         ('<rules>','world'),('<style>','style')]:
+        for tag, cat in [('<worldview>','world'),('<world_view>','world'),('<hierarchy>','world'),
+                         ('<character>','character'),('<character_design_complex>','character'),('<npc>','character'),
+                         ('<rules>','world'),('<style>','style'),
+                         ('<体型差>','world'), ('<体型差 ', 'world')]:
             if tag in c200:
                 cats[cat].append(entry)
                 matched = True
@@ -138,6 +147,62 @@ def classify_entries(entries):
 
     for cat in cats:
         cats[cat].sort(key=lambda e: e.get('insertion_order') if e.get('insertion_order') is not None else e.get('id', 0))
+    return cats
+
+
+def fallback_classify(cats, entries):
+    """兜底规则：对空分类的其它条目做二次宽松匹配。"""
+    # 定义兜底规则：分类名 → [(检测函数, 描述)]
+    fallback_rules = {
+        'character': [
+            lambda c, k, ct: any(w in ct[:300] for w in ['角色档案', '人物设定', '人设']),
+            lambda c, k, ct: sum(1 for w in ['姓名:', '年龄:', '性别:', '身份:', '外貌', '背景'] if w in ct[:200]) >= 3,
+            lambda c, k, ct: sum(1 for w in ['性格', '行为', '穿着', '爱好', '关系'] if w in ct[:200]) >= 2,
+        ],
+        'protagonist': [
+            lambda c, k, ct: '{{user}}' in ct[:300] or '主角' in ct[:300],
+        ],
+        'world': [
+            lambda c, k, ct: any(w in ct[:200] for w in ['<世界观>', '<势力>', '<设定>', '<规则>']),
+            lambda c, k, ct: any(w in ct[:100] for w in ['世界名称', '世界类型', '核心设定', '地理环境']),
+        ],
+        'style': [
+            lambda c, k, ct: any(w in ct[:200] for w in ['文风', '叙事', '格式', '描写风格', '写作风格']),
+        ],
+    }
+
+    moved = {cat: 0 for cat in fallback_rules}
+    remaining = []
+    for entry in cats['other']:
+        comment = (entry.get('comment', '') or '').lower()
+        key_text = ' '.join(entry.get('keys', []) or []).lower()
+        content = (entry.get('content', '') or '').lower()
+        c300 = content[:300]
+
+        matched = False
+        for cat, rules in fallback_rules.items():
+            if cats[cat]:  # 只在目标分类为空时才尝试
+                continue
+            for rule in rules:
+                if rule(comment, key_text, c300):
+                    cats[cat].append(entry)
+                    moved[cat] += 1
+                    matched = True
+                    break
+            if matched:
+                break
+        if not matched:
+            remaining.append(entry)
+
+    cats['other'] = remaining
+    for cat in ['character', 'protagonist', 'world', 'style']:
+        if cats[cat]:
+            cats[cat].sort(key=lambda e: e.get('insertion_order') if e.get('insertion_order') is not None else e.get('id', 0))
+
+    moved_total = sum(moved.values())
+    if moved_total > 0:
+        details = ', '.join(f'{k}+{v}' for k, v in moved.items() if v > 0)
+        print(f"   ↪ 兜底回收: {moved_total} 条 ({details})")
     return cats
 
 
@@ -351,23 +416,17 @@ def gen_protagonist(entries, user_info=""):
     return '\n'.join(lines)
 
 
-def gen_style(entries, personality="", mes_example="", first_mes=""):
+def gen_style(entries, personality="", mes_example=""):
     lines = ["# 风格指南", "",
              "> 从酒馆角色卡/世界书自动提取",
              f"> 提取时间：{datetime.now():%Y-%m-%d %H:%M}", "", "---", ""]
-    if first_mes:
-        lines += ["## ⭐ 开场白（first_mes）—— 角色语音/文风标杆", "",
-                  "> 这是角色与玩家说的第一句话，是角色语气、说话方式、风格的最高参考基准。",
-                  "> 写作时应当严格遵循此风格。",
-                  "",
-                  "```", first_mes[:2000], "```", "", "---", ""]
     if personality:
         lines += ["## 角色卡人格设定", "", personality[:1000], "", "---", ""]
     for e in entries:
         lines += [f"## {entry_name(e)}", "", clean(e.get('content','')), "", "---", ""]
     if mes_example:
         lines += ["## 对话样例（文风参考）", "", "```", mes_example[:1500], "```", "", "---", ""]
-    if not entries and not personality and not first_mes:
+    if not entries and not personality:
         lines += ["（自动提取未发现风格相关条目。）", "",
                   "## 参考选项", "",
                   "- **叙事视角**：第一人称 / 第三人称有限 / 第三人称全知",
@@ -410,6 +469,36 @@ def gen_instructions(wc, cc):
     ])
 
 
+def gen_opening(first_mes="", mes_example="", entries=None):
+    """生成开场白.md —— 角色开场白 + 对话样例。"""
+    lines = ["# 🎬 开场白", "",
+             "> 从酒馆角色卡/世界书自动提取",
+             f"> 提取时间：{datetime.now():%Y-%m-%d %H:%M}", "",
+             "---", ""]
+
+    if first_mes:
+        lines += ["## ⭐ 开场白（first_mes）", "",
+                  "> 角色与玩家说的第一句话，是角色语气和文风的最高参考基准。",
+                  "",
+                  "```", first_mes[:3000], "```", "",
+                  "---", ""]
+
+    if entries:
+        for e in entries:
+            lines += [f"## {entry_name(e)}", "", clean(e.get('content','')), "", "---", ""]
+
+    if mes_example:
+        lines += ["## 对话样例（mes_example）", "",
+                  "> 角色对话样例，展示角色的说话方式和互动风格。",
+                  "",
+                  "```", mes_example[:2000], "```", "",
+                  "---", ""]
+
+    if not first_mes and not entries and not mes_example:
+        lines.append("（角色卡中未提供开场白。）")
+    return '\n'.join(lines)
+
+
 # ── 主流程 ─────────────────────────────────────
 
 def main():
@@ -444,6 +533,8 @@ def main():
     print(f"📊 总条目数: {len(entries)}")
 
     cats = classify_entries(entries)
+    # 兜底：空分类的二次宽松匹配
+    cats = fallback_classify(cats, entries)
     for k, v in cats.items():
         print(f"   {k}: {len(v)} 条")
 
@@ -475,12 +566,16 @@ def main():
     written.append('角色卡原始数据.md')
 
     # ── 第二步：智能分类提取 ──
+    # 开场白相关条目（从 entries 中筛选 comment/keys 含"开场白"的）
+    opening_entries = [e for e in entries
+                       if any(w in (e.get('comment','') or '').lower() for w in ['开场白', 'opening'])]
     files = {
         '世界背景.md': gen_world(cats['world'] + cats['other'], desc[:1000] if desc else ''),
         '角色.md':     gen_chars(cats['character']),
         '主角.md':     gen_protagonist(cats['protagonist'], user_info),
+        '开场白.md':   gen_opening(card.get('first_mes',''), card.get('mes_example',''), opening_entries),
         '风格指南.md': gen_style(cats['style'], card.get('personality',''),
-                                  card.get('mes_example',''), card.get('first_mes','')),
+                                  card.get('mes_example','')),
         '系统指令.md': gen_instructions(len(cats['world']), len(cats['character'])),
     }
 
