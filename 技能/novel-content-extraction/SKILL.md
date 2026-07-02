@@ -1,11 +1,11 @@
 ---
 name: novel-content-extraction
-description: "Extract characters, world-building, and plot state from Chinese novels for Story Engine import. Python script based — fast, no LLM calls. Use when importing a novel file (.txt) and need structured metadata (角色/世界观/剧情状态)."
-category: software-development
-tags: [novel, chinese, nlp, story-engine, extraction]
+description: "快速扫描中文小说，提取角色/世界观/剧情状态等结构化数据。纯脚本执行，不调用LLM，秒出结果。触发词：小说内容提取、提取小说、扫描小说、小说分析"
+runAs: subagent
+allowed-tools: read_file, bash, grep
 ---
 
-# Novel Content Extraction
+# Novel Content Extraction — 小说内容提取器
 
 从中文小说中提取角色、世界观、剧情状态，输出结构化 Story Engine 数据。
 

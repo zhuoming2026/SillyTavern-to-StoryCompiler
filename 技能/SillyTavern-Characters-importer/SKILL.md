@@ -1,15 +1,39 @@
 ---
-name: world-book-png
-description: 解析SillyTavern酒馆角色卡/世界书PNG，提取结构化设定到 故事/rp-故事名/设定/
+name: SillyTavern-Characters-importer
+description: "导入SillyTavern角色卡（PNG/JSON格式），解析为结构化故事设定。触发词：解析角色卡、导入角色卡、导入SillyTavern、导入酒馆卡"
 runAs: subagent
 allowed-tools: read_file, write_file, bash
 ---
 
-# world-book-png — 酒馆角色卡/世界书 PNG 解析器
+# SillyTavern-Characters-importer — 角色卡导入器
 
 ## 职责
 
-解析 SillyTavern（酒馆）导出的 `.png` 格式文件（角色卡或世界书），提取其中的结构化世界观数据，生成到 `故事/rp-故事名/设定/` 目录。
+导入 SillyTavern（酒馆）导出的角色卡文件（`.png` 或 `.json` 格式），提取其中的结构化数据，生成到 `故事/rp-故事名/设定/` 目录。
+
+## 支持格式
+
+| 格式 | 检测方式 | 说明 |
+|:-----|:---------|:------|
+| `.png` | 文件头（tEXt/iTXt/zTXt 块） | 标准酒馆角色卡/世界书 PNG |
+| `.json` | 文件后缀 | SillyTavern 导出的 JSON 角色卡（V2/V3 格式） |
+
+## JSON 格式说明
+
+JSON 角色卡支持以下结构（兼容 V2 平铺结构和 V3 嵌套结构）：
+
+| 字段 | 说明 |
+|:-----|:------|
+| `name` | 角色名 |
+| `description` | 角色简介 |
+| `personality` | 性格描述 |
+| `first_mes` | 开场白 |
+| `scenario` | 场景描述 |
+| `system_prompt` | 系统指令（V3 在 `data.system_prompt`） |
+| `post_history_instructions` | 历史后指令 |
+| `alternate_greetings` | 可选开场白列表 |
+| `character_book.entries` | 世界书条目（含 keys/content/constant） |
+| `spec` / `spec_version` | 格式规范版本
 
 ---
 

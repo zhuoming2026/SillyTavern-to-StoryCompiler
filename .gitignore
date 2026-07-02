@@ -5,8 +5,11 @@
 reasonix.toml
 reasonix.toml.example
 story/
-故事/
+/故事/
 .reasonix/
+
+# 通用知识内容文件（只跟踪 README.md，不跟踪具体资产文件）
+/通用知识/*/
 
 # Python cache
 __pycache__/
