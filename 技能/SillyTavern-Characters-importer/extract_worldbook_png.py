@@ -559,7 +559,7 @@ def main():
         sys.exit(1)
 
     png_path = sys.argv[1]
-    out_dir = sys.argv[2] if len(sys.argv) > 2 else 自动检测
+    out_dir = sys.argv[2] if len(sys.argv) > 2 else "自动检测"
 
     if not os.path.exists(png_path):
         print(f"❌ 文件不存在: {png_path}")

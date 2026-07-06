@@ -1,158 +1,262 @@
 ---
 name: SillyTavern-Characters-importer
-description: "导入SillyTavern角色卡（PNG/JSON格式），解析为结构化故事设定。触发词：解析角色卡、导入角色卡、导入SillyTavern、导入酒馆卡"
+description: "导入SillyTavern角色卡（PNG/JSON），提取原始数据。职责单一：只做步骤1-2。触发词：解析角色卡、导入角色卡"
 runAs: subagent
 allowed-tools: read_file, write_file, bash
 ---
 
 # SillyTavern-Characters-importer — 角色卡导入器
 
-## 职责
+## 职责边界
 
-导入 SillyTavern（酒馆）导出的角色卡文件（`.png` 或 `.json` 格式），提取其中的结构化数据，生成到 `故事/rp-故事名/设定/` 目录。
+**这个技能只做两件事：**
 
-## 支持格式
+1. **提取完整 JSON** — 原始数据，零修改
+2. **生成世界书概览 + 开场白** — 让用户能进入下一步选择
 
-| 格式 | 检测方式 | 说明 |
-|:-----|:---------|:------|
-| `.png` | 文件头（tEXt/iTXt/zTXt 块） | 标准酒馆角色卡/世界书 PNG |
-| `.json` | 文件后缀 | SillyTavern 导出的 JSON 角色卡（V2/V3 格式） |
+做完这两步就结束。**不生成设定文件、不做分类、不做风格提取。**
 
-## JSON 格式说明
-
-JSON 角色卡支持以下结构（兼容 V2 平铺结构和 V3 嵌套结构）：
-
-| 字段 | 说明 |
-|:-----|:------|
-| `name` | 角色名 |
-| `description` | 角色简介 |
-| `personality` | 性格描述 |
-| `first_mes` | 开场白 |
-| `scenario` | 场景描述 |
-| `system_prompt` | 系统指令（V3 在 `data.system_prompt`） |
-| `post_history_instructions` | 历史后指令 |
-| `alternate_greetings` | 可选开场白列表 |
-| `character_book.entries` | 世界书条目（含 keys/content/constant） |
-| `spec` / `spec_version` | 格式规范版本
+后续步骤（勾选条目→提取风格/变量→生成AGENTS）由 `Characters-to-world` 负责。
 
 ---
 
-## 支持的文件格式
+## 核心理念
 
-| 类型 | 说明 | 数据位置 |
-|------|------|---------|
-| **角色卡 PNG** | SillyTavern 角色卡导出（含世界书） | tEXt chunk `chara` 字段，base64 编码 |
-| **世界书 PNG** | 世界书独立导出 | IEND chunk 后附加 JSON，或 tEXt `worldbook` 字段 |
-
-两种格式自动识别，无需手动指定。
+**AI 不替用户做判断，也不自作主张往前多走一步。**
 
 ---
 
-## 输入
+## 支持的格式
+
+| 格式 | 检测方式 |
+|:-----|:---------|
+| `.png` | 文件头 tEXt/iTXt/zTXt 块（标准酒馆角色卡/世界书 PNG） |
+| `.json` | 文件后缀（SillyTavern V2/V3 格式） |
+
+---
+
+## 工作流
+
+### Step 0：环境检测
+
+每次启动时，执行以下检测确定当前平台能力：
 
 ```
-故事/rp-故事名/基础数据/
-└── *.png                 ← 酒馆导出的 PNG 文件（任意文件名）
+尝试 bash -c "echo ok"
+  ↓ 成功 → env.shell = bash, env.has_exec = true
+  ↓ 失败
+确认 → env.shell = unavailable, env.has_exec = false
 ```
 
-## 输出
+检测结果决定后续执行路径（见下文各步骤的兼容分支）。
+
+---
+
+### Step 0.5：预取角色名 → 创建故事目录
+
+> 不先问用户"故事叫啥名"，直接从角色卡里读出名字，建好目录再干活。
+
+#### 预取角色名
+
+根据输入文件格式，快速提取角色名：
+
+| 格式 | 提取方式 | 兼容性 |
+|:-----|:---------|:-------|
+| `.png`（bash 可用） | bash → 最小化 Python 脚本，只提取 name 字段 | bash ✅ |
+| `.png`（bash 不可用） | 写入最小脚本 → 告知用户执行一次 | 手动 |
+| `.json` | 直接 `read_file` 前几 KB，从 JSON 中提取 | 无需 bash |
+
+**角色名提取逻辑（适用于所有格式）：**
+
+```json
+// 在 JSON 中按以下优先级找 name:
+// 1. data.name（V2 格式）
+// 2. name（V1 格式）
+// 3. spec.name（特殊格式）
+// 4. 都找不到 → 使用文件名（不含扩展名）
+```
+
+**PNG 最小化预取脚本**（仅提取 name，不等同完整解析）：
+```python
+import struct, base64, json, sys
+with open(sys.argv[1], 'rb') as f:
+    data = f.read()
+pos = 8
+while pos < len(data):
+    length = struct.unpack('>I', data[pos:pos+4])[0]
+    ct = data[pos+4:pos+8]
+    cd = data[pos+8:pos+8+length]
+    pos += 12 + length
+    if ct == b'tEXt':
+        ni = cd.find(b'\x00')
+        if ni >= 0 and cd[:ni].decode('latin-1') == 'chara':
+            d = json.loads(base64.b64decode(cd[ni+1:]))
+            d2 = d.get('data', d)
+            print('NAME:', d2.get('name', d.get('name', d.get('spec', {}).get('name', ''))))
+            sys.exit(0)
+print('NAME: 未命名角色')
+```
+
+**路径兼容创建故事目录：**
 
 ```
-故事/rp-故事名/设定/
-├── 角色卡原始数据_完整版.md  ← 🆕 ALL原始字段全量导出（JSON原样）
-├── 角色卡原始数据.md          ← 🆕 索引摘要（条目列表+元数据概览）
-├── 🎬 开场白.md              ← 🆕 开场白 + 对话样例（单独提取）
-├── 世界背景.md               ← 世界观条目 + 未分类条目附录
-├── 角色.md                   ← 角色相关条目
-├── 主角.md                   ← 主角信息（从角色卡描述或条目提取）
-├── 风格指南.md               ← 创作规则、文风设定、对话样例
-├── 📊 状态变量.md            ← 🆕 MVU 变量系统（好感度/领地状态/攻略进度）
-└── 系统指令.md               ← AI 叙事核心指令
+故事名 = 角色名（去除非法文件字符：\/:*?"<>|）
+故事目录 = 故事/rp-{故事名}/
+```
+
+创建 `故事/rp-{故事名}/` 及子目录：
+- `基础数据/` — 存放原始 PNG/JSON
+- `设定/` — 存放提取后的 JSON 和生成文件
+- `元数据/` `状态/` `写作/聊天记录` `写作/小说` `写作/规划` `配置/`
+
+#### 用户确认（可选）
+
+如果用户已经说了"故事名叫 XXX"，**跳过此步骤**，直接用用户指定的名字。
+
+如果角色名提取结果和用户预期不符，用户可以在事后说"改名"来修改。
+
+#### 将输入文件复制到故事目录
+
+无论哪种路径，将输入的 PNG/JSON 复制到故事目录：
+```
+原始文件 → 故事/rp-{故事名}/基础数据/{故事名}.{png|json}
+```
+
+Step 1 的输入从此目录读取。
+
+---
+
+### Step 1：提取完整 JSON
+
+#### 路径 A：bash 可用（macOS / Linux / Windows Git Bash）
+
+通过 bash 调用 Python 脚本解析 PNG：
+
+```
+输入：基础数据/*.png 或 *.json
+    ↓
+提取 JSON（bash → python 解析 PNG chunk → base64 解码 → JSON）
+    ↓
+保存：设定/角色卡原始数据_完整版.md
+     设定/角色卡原始数据.json
+```
+
+**产出文件：**
+- `设定/角色卡原始数据_完整版.md` — 完整 JSON，格式化但零修改
+- `设定/角色卡原始数据.json` — JSON 副本
+
+#### 路径 B：bash 不可用，仅文件工具
+
+> ⚠️ **此路径下 PNG 格式角色卡无法自动解析。**
+> 技能通过文件工具可处理 `.json` 格式角色卡。
+
+**执行流程：**
+
+1. 检测输入文件格式
+   - 如果是 `.json` → 直接读取 JSON → 输出到 `设定/角色卡原始数据.json` → 进入 Step 2
+   - 如果是 `.png` → 进入下方 **PNG 手动提取流程**
+
+**PNG 手动提取流程：**
+
+1. 将解析脚本写入 `.reasonix/tmp/extract_chara.py`
+2. 告知用户手动执行：
+   ```
+   python .reasonix/tmp/extract_chara.py "基础数据/角色卡.png" "设定/角色卡原始数据.json"
+   ```
+3. 用户执行完后，检查文件是否存在，存在则继续 Step 2
+
+**写入的 Python 脚本内容：**
+```python
+import struct, base64, json, sys, os
+with open(sys.argv[1], 'rb') as f:
+    data = f.read()
+pos = 8
+while pos < len(data):
+    length = struct.unpack('>I', data[pos:pos+4])[0]
+    chunk_type = data[pos+4:pos+8]
+    chunk_data = data[pos+8:pos+8+length]
+    pos += 12 + length
+    if chunk_type == b'tEXt':
+        null_idx = chunk_data.find(b'\x00')
+        if null_idx >= 0:
+            key = chunk_data[:null_idx].decode('latin-1')
+            value = chunk_data[null_idx+1:].decode('latin-1')
+            if key == 'chara':
+                decoded = base64.b64decode(value)
+                parsed = json.loads(decoded)
+                out_path = sys.argv[2] if len(sys.argv) > 2 else 'output.json'
+                with open(out_path, 'w', encoding='utf-8') as fout:
+                    json.dump(parsed, fout, ensure_ascii=False, indent=2)
+                print(f'OK: {os.path.basename(out_path)}')
+                sys.exit(0)
+print('ERR: no chara chunk found')
+sys.exit(1)
 ```
 
 ---
 
-## 条目分类规则
+### Step 2：生成世界书概览 + 开场白
 
-根据每条 entry 的 `keys[]` 和 `comment` 字段自动分类：
+#### 2a. 开场白提取（100%完整）
 
-| 分类依据 | → 输出文件 |
-|---------|-----------|
-| `keys` 以「性癖」开头 | `世界背景.md`（作为性癖目录） |
-| keys/comment 含「世界观」「worldview」「等级」「hierarchy」「社会规则」「势力」「世界背景」 | `世界背景.md` |
-| content 含 `<world_view>` 或 `<体型差>` 等世界规则标签 | `世界背景.md` |
-| keys/comment 含「角色」「character」「npc」「人物」「人设」 | `角色.md` |
-| content 含 `<character_design_complex>` 标签 | `角色.md` |
-| content 含 `# SFW - 人物设定` + `name:` | `角色.md` |
-| content 含 `# 核心信息` + `name:` + `identities:` | `角色.md`（兜底：覆盖无标记的角色条目） |
-| content 含 `角色档案:` 或 `基本信息:` + `姓名:` + `性别:` | `角色.md`（兜底：自定义标签格式） |
-| keys/comment 含「主角」「玩家」「player」「{{user}}」 | `主角.md` |
-| content 含 `name: {{user}}` | `主角.md` |
-| keys/comment 含「风格」「文风」「style」「八股」「格式」 | `风格指南.md` |
-| --- | --- | --- |
-| 🚫 content 含 `<%_`（EJS模板）或 comment 含 `EJS调色盘多阶段` | **忽略**（前端脚本，不输出） |
-| 📊 comment 含「mvu_update」「变量列表」「initvar」「变量更新规则」「变量输出格式」 | `状态变量.md` |
-| 📊 content 含 `<status_current_variables>` | `状态变量.md` |
-| ⭐ **兜底规则**：分类后若有空文件，对 `other` 条目做二次宽松匹配 | |
+从 JSON 中提取：
+- `first_mes` → 主开场白
+- `alternate_greetings` → 备选开场白列表
+- `mes_example` → 对话样例
 
-### 兜底二次匹配规则
+写入 `设定/🎬 开场白.md`，保持原文，不做修改。
 
-当某个分类结果为空时，`fallback_classify()` 对 `other` 中的条目做更宽松的二次扫描：
+**产出文件：**
+- `设定/🎬 开场白.md` — 所有开场白原文，零修改
 
-| 空分类 | 二次检测条件（content 中满足任一） |
-|:-------|:----------------------------------|
-| `角色.md` | 含 `角色档案` / `人物设定` / `人设` |
-| | 同时含 ≥3 项：`姓名:` `年龄:` `性别:` `身份:` `外貌` `背景` |
-| | 同时含 ≥2 项：`性格` `行为` `穿着` `爱好` `关系` |
-| `主角.md` | 含 `{{user}}` 或 `主角` |
-| `世界背景.md` | 含 `<世界观>` `<势力>` `<设定>` `<规则>` 标签 |
-| | 含 `世界名称` `世界类型` `核心设定` `地理环境` |
-| `风格指南.md` | 含 `文风` `叙事` `格式` `描写风格` `写作风格` |
-| `状态变量.md` | 含 `<status_` 或 `变量输出` `变量更新` `变量初始化` |
+#### 2b. 世界书概览
 
-内容中的关键词不作为分类依据，避免误分类（如性癖描述中提到的"角色"）。
+从 `character_book.entries[]` 生成勾选清单：
 
-### 条目排序
+```
+# 世界书概览
 
-- 按 `insertion_order` 升序（值越小越优先）
-- 无该字段则按 `id` 排序
-- 已禁用条目（`enabled: false`）跳过
+> 共 XX 条世界书条目 | 已启用 XX 条 | 已禁用 XX 条
+
+请勾选你要保留的词条，未勾选的将被排除：
+
+- [x] **#0** 「条目名称」
+  - 触发词: `关键词`
+  - 摘要: 内容前 80 字...
+  - 备注: 分类/说明
+
+- [ ] **#1** ...
+```
+
+**规则：**
+- 每条 entry 一行
+- 启用/禁用用 `[x]` / `[ ]` 标记
+- 内容只截取前 80 字，不修改原文
+- 不判断"这是什么类型"
+- 格式要求：概览与说明之间空行，清单缩进统一
+
+**产出文件：**
+- `设定/世界书概览.md` — 勾选清单，用户手动打勾后保存
 
 ---
 
-## 角色卡额外信息
+### Step 2 完成后汇报
 
-如果输入的是角色卡 PNG，还会提取：
+```
+✅ 角色卡导入完成！
 
-| 角色卡字段 | 写入位置 |
-|-----------|---------|
-| `description` | 世界背景.md「角色卡描述」、主角.md「角色卡中的主角信息」 |
-| `personality` | 风格指南.md「角色卡人格设定」 |
-| `mes_example` | 🆕 开场白.md「对话样例」、风格指南.md（精简版） |
-| `first_mes` | ⭐ 开场白.md「开场白（first_mes）」——角色语气/文风最高参考 |
-| **所有原始字段** | 🆕 `角色卡原始数据_完整版.md` 全量导出 |
+📦 设定/角色卡原始数据_完整版.md  ← 完整 JSON
+📦 设定/角色卡原始数据.json       ← JSON 副本
+📦 设定/🎬 开场白.md              ← X 个开场白
+📦 设定/世界书概览.md             ← XX 条世界书条目（待勾选）
+
+下一步：请在 世界书概览.md 中勾选你要保留的词条，然后调用 Characters-to-world 继续。
+```
 
 ---
 
-## 处理流程
+## 绝对禁令
 
-1. 检查 `故事/rp-故事名/基础数据/*.png` 是否存在
-2. 读取 PNG 二进制 → 解析 chunk → 提取 JSON（base64 解码）
-3. **第一步：生成原始数据全量导出**
-   - `角色卡原始数据_完整版.md` → 所有字段原样输出（角色名、开场白、人格、对话样例、每条世界书条目）
-   - `角色卡原始数据.md` → 索引摘要（条目列表+触发词+启用状态）
-4. **第二步：智能分类提取**
-   - 按分类规则将 entries 分配到各文件
-   - 开场白 `first_mes` + `mes_example` → `开场白.md`
-5. **第三步：兜底二次匹配**
-   - 对空分类执行 `fallback_classify()`，用宽松规则回收 other 中的条目
-6. 写入 `故事/rp-故事名/设定/` 目录
-7. 汇报提取结果
-
-## 输出规范
-
-- UTF-8 编码
-- 保留原文专有名词和格式
-- 未分类条目统一放入世界背景附录
-- **不要创作小说正文，不要推进剧情**
-- 输出完成后用文件清单汇报
+- ❌ 禁止对 JSON 做任何识别、分类、修改
+- ❌ 禁止生成除上述三个文件外的任何文件
+- ❌ 禁止调用 Characters-to-world 或其他技能——只做提取
