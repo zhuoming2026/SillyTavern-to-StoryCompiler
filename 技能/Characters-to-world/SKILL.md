@@ -144,7 +144,122 @@ Characters-to-world 所有步骤均为纯文件操作（读 JSON → 分析 → 
 如有 → 提取并写入 `设定/思维链.md`
 如无 → **不生成空文件**，AGENTS.md 中使用通用模板
 
----
+#### 3f. 提取 MVU 状态数据 + 状态栏（★ V2.2 新增）
+
+> **目标：** 从角色卡中提取 MVU 相关资产，生成 `状态/stat_data.js`（结构化数据）和 `状态/状态栏.html`（可视化展示）。
+> 角色卡内可能包含：`[initvar]` 世界书条目、Zod Schema、状态栏正则（匹配 `<StatusPlaceHolderImpl/>`）。
+
+##### 3f-1. 检测并提取 initvar
+
+扫描所有世界书条目（无论是否勾选），查找 `comment` 含 `[initvar]` 或 `记录初始化` 或 `变量初始化` 的条目：
+
+- **找到** → 读取 `content` 中的 YAML/JSON 初始值数据
+- **找不到** → 跳过此步骤，标注"未检测到 MVU initvar 数据"
+
+##### 3f-2. 提取 Zod Schema（如果有）
+
+扫描 `extensions.tavern_helper.scripts[]`，查找 `name` 为 `mvu` 或内容含 `registerMvuSchema` 的脚本条目：
+
+- **找到** → 提取 `content` 中的 Schema 定义
+- **找不到** → 跳过
+
+##### 3f-3. 提取状态栏 HTML 模板
+
+从角色卡原始 JSON 中查找 `extensions.regex_scripts[]` 中 `findRegex` 含 `<StatusPlaceHolderImpl/>` 的条目：
+
+- **找到** → 提取 `replaceString` 中的 HTML 模板
+- **找不到** → 跳过
+
+##### 3f-4. 生成 `状态/stat_data.js`
+
+将 initvar + Schema 合并为 single-source-of-truth 数据文件：
+
+```javascript
+// 状态数据 — 由 Characters-to-world 从角色卡 [initvar] 自动生成
+// 每次写作后通过 #更新状态 指令同步更新
+// Schema 来源: Zod Schema（如有）
+
+const statData = {
+  // ⬇ 变量路径和描述来自 Zod Schema / initvar 注释
+  "世界状态": {
+    "当前时间": "第三日·午后", // z.string()
+    "所处地点": "边境小镇"     // z.string()
+  },
+  "旅人": {
+    "体力": 100,              // z.number().range(0~100)
+    "心情": "平静",           // z.string().describe("当前情绪状态")
+    "装备": "旅行者轻甲",    // z.string().describe("当前穿戴")
+    "背包": {
+      "金币": 50,
+      "干粮": "3日份"
+    }
+  }
+};
+```
+
+**生成规则：**
+- 变量路径从 initvar YAML 的嵌套结构推导
+- 变量类型和范围从 Zod Schema 的 `.describe()` 和 `.range()` 提取为注释
+- 初始值使用 initvar 中定义的值
+- `{{user}}` 占位符保留不替换
+- 同步生成 `状态/状态数据.md`（同一份数据，Markdown 表格格式供 AI 阅读）
+
+##### 3f-5. 生成 `状态/状态栏.html`（如有状态栏 HTML 模板）
+
+将提取到的状态栏 HTML 模板转换为脱酒馆版本：
+
+| 原始 API | 替换方式 |
+|:---------|:---------|
+| `getAllVariables()` | 删除，改为从 `statData` 读取 |
+| `_.get(all_variables, 'stat_data.xxx', default)` | 替换为 `safeGet(statData, 'xxx', default)` |
+| `$('#id').text()` / `$('#id').css()` | 替换为 `document.getElementById().textContent / style` |
+| `eventOn(Mvu.events.VARIABLE_UPDATE_ENDED, ...)` | 删除（不需要实时监听） |
+| `waitGlobalInitialized('Mvu')` | 删除 |
+| `$(errorCatched(init))` | 替换为 `document.addEventListener('DOMContentLoaded', ...)` |
+
+**生成的 HTML 文件：**
+```html
+<script src="stat_data.js"></script>
+<script>
+/* 从 statData 读取数据，不依赖酒馆运行时 */
+function safeGet(obj, path, fallback) {
+  var parts = path.split('.');
+  var cur = obj;
+  for (var i = 0; i < parts.length; i++) {
+    if (cur == null || typeof cur !== 'object') return fallback;
+    cur = cur[parts[i]];
+  }
+  return cur !== undefined && cur !== null ? cur : fallback;
+}
+function populate() {
+  var d = typeof statData !== 'undefined' ? statData : {};
+  document.getElementById('val-time').textContent = safeGet(d, '世界状态.当前时间', '未知');
+  // ...
+}
+document.addEventListener('DOMContentLoaded', populate);
+</script>
+```
+
+> 如角色卡无状态栏正则 → **不生成 HTML 文件**
+
+##### 3f-6. 输出文件
+
+| 文件 | 条件 | 说明 |
+|:-----|:-----|:------|
+| `状态/stat_data.js` | 必有（有 initvar） | 结构化数据源 |
+| `状态/状态数据.md` | 必有（有 initvar） | Markdown 表格版 |
+| `状态/状态栏.html` | 有条件（有状态栏正则） | 可视化展示 |
+
+##### 3f-7. 更新 AGENTS.md 引用
+
+在 AGENTS.md 的 #6 状态变量区追加：
+
+```markdown
+### 状态数据文件
+
+- `状态/stat_data.js` — 结构化状态数据，`#更新状态` 时同步更新
+- `状态/状态栏.html` — 状态可视化（浏览器打开）
+```
 
 
 
