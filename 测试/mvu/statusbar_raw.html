@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的姨母和妈妈好润MVU版 - 状态栏</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: transparent;
+            /* 严格检查：body padding必须为0，边距由容器控制 */
+            padding: 0;
+            margin: 0;
+        }
+        /* 给主容器添加padding，替代body的padding，避免样式污染 */
+        .main-wrapper {
+            padding: 12px;
+        }
+        .tab-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .tab-button {
+            padding: 8px 16px;
+            background: rgba(102, 126, 234, 0.1);
+            border: 2px solid rgba(102, 126, 234, 0.3);
+            border-radius: 12px;
+            color: #e8e8ea;
+            font: bold 14px system-ui;
+            cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+        .tab-button:hover {
+            background: rgba(102, 126, 234, 0.2);
+            border-color: rgba(102, 126, 234, 0.5);
+        }
+        .tab-button.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-color: #667eea;
+            box-shadow: 0 0 15px rgba(102, 126, 234, 0.5);
+        }
+        .time-display {
+            margin-left: auto;
+            color: #fbbf24;
+            font-weight: 700;
+            font-size: 14px;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .sp {
+            font: 13px/1.4 'Microsoft YaHei';
+            background: linear-gradient(145deg, #0a0a0f, #16161d);
+            color: #e8e8ea;
+            border: 2px solid transparent;
+            background-clip: padding-box;
+            position: relative;
+            border-radius: 16px;
+            padding: 18px;
+            margin: 12px 0;
+        }
+        .sp:before {
+            content: '';
+            position: absolute;
+            inset: -2px;
+            background: linear-gradient(135deg, #667eea, #764ba2, #f093fb, #f5576c);
+            border-radius: 16px;
+            z-index: -1;
+        }
+        .sp-h {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 14px;
+            margin-bottom: 16px;
+            border-bottom: 2px solid rgba(102, 126, 234, 0.2);
+        }
+        .sp-title {
+            font: bold 16px system-ui;
+            color: #fcd34d;
+            border-bottom: 2px solid rgba(102, 126, 234, 0.3);
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+        .collapse-button {
+            background: rgba(102, 126, 234, 0.1);
+            border: 2px solid rgba(102, 126, 234, 0.3);
+            border-radius: 8px;
+            color: #e8e8ea;
+            font: bold 12px system-ui;
+            cursor: pointer;
+            padding: 4px 10px;
+            transition: all 0.3s;
+            white-space: nowrap;
+            margin-left: 12px;
+        }
+        .collapse-button:hover {
+            background: rgba(102, 126, 234, 0.2);
+            border-color: rgba(102, 126, 234, 0.5);
+        }
+        .content-wrapper {
+            overflow: hidden;
+            transition: max-height 0.4s ease-out, opacity 0.3s ease-out, margin 0.3s ease-out;
+            max-height: 10000px;
+            opacity: 1;
+        }
+        .content-wrapper.collapsed {
+            max-height: 0 !important;
+            opacity: 0;
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+        }
+        .content-container {
+            position: relative;
+        }
+        .sp-header-with-tabs {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .sp-t {
+            font: bold 18px/1 system-ui;
+            background: linear-gradient(270deg, #667eea, #764ba2, #f093fb, #f5576c, #667eea);
+            background-size: 200% auto;
+            animation: shine 3s linear infinite;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        @keyframes shine {
+            to { background-position: 200% center; }
+        }
+        .sp-d {
+            color: #fbbf24;
+            font-weight: 700;
+        }
+        .sp-c {
+            background: rgba(102, 126, 234, 0.06);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(102, 126, 234, 0.12);
+            border-radius: 12px;
+            padding: 14px;
+            margin: 12px 0;
+            transition: all 0.3s;
+        }
+        .sp-c:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 32px rgba(102, 126, 234, 0.15);
+        }
+        .sp-n {
+            font: bold 16px system-ui;
+            color: #fcd34d;
+            margin-bottom: 12px;
+        }
+        .sp-r {
+            display: flex;
+            padding: 6px 0;
+        }
+        .sp-l {
+            color: #94a3b8;
+            font-weight: 600;
+            min-width: 75px;
+        }
+        .sp-v {
+            color: #f3f4f6;
+            flex: 1;
+        }
+        .sp-cl {
+            font-size: 12px;
+            color: #d1d5db;
+            background: rgba(255, 255, 255, 0.04);
+            padding: 5px 10px;
+            border-radius: 8px;
+            margin: 6px 0;
+        }
+        .sp-th {
+            color: #e9d5ff;
+            padding: 10px;
+            margin: 8px 0;
+            background: linear-gradient(90deg, rgba(233, 213, 255, 0.1), transparent);
+            border-left: 3px solid #e9d5ff;
+            border-radius: 0 8px 8px 0;
+        }
+        .sp-st {
+            margin-top: 12px;
+        }
+        .sp-sr {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+        .sp-sl {
+            color: #a1a1aa;
+            font-weight: 600;
+            min-width: 72px;
+            font-size: 13px;
+        }
+        .sp-pb {
+            flex: 1;
+            height: 26px;
+            background: linear-gradient(to bottom, #0a0a0f, #16161d);
+            border-radius: 30px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 3px 10px rgba(0, 0, 0, 0.6);
+        }
+        .sp-pf {
+            height: 100%;
+            position: absolute;
+            top: 0;
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 30px;
+        }
+        .pf-pos {
+            left: 0;
+        }
+        .pf-neg {
+            right: 50%;
+        }
+        .pf-aff-pos {
+            background: linear-gradient(90deg, #ec4899, #f472b6);
+            box-shadow: 0 0 15px rgba(236, 72, 153, 0.5);
+        }
+        .pf-aff-neg {
+            background: linear-gradient(90deg, #6366f1, #818cf8);
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.5);
+        }
+        .pf-cor-pos {
+            background: linear-gradient(90deg, #dc2626, #f87171);
+            box-shadow: 0 0 15px rgba(220, 38, 38, 0.5);
+        }
+        .pf-cor-neg {
+            background: linear-gradient(90deg, #06b6d4, #67e8f9);
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.5);
+        }
+        .pf-love {
+            background: linear-gradient(90deg, #ec4899, #f9a8d4);
+            box-shadow: 0 0 15px rgba(236, 72, 153, 0.5);
+        }
+        .pf-sus {
+            background: linear-gradient(90deg, #f59e0b, #fbbf24);
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.5);
+        }
+        .pf-lust {
+            background: linear-gradient(90deg, #ef4444, #fca5a5);
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+        }
+        .sp-mid {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            width: 1px;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.15);
+            z-index: 5;
+        }
+        .sp-pt {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font: bold 13px system-ui;
+            color: #fff;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+            z-index: 10;
+        }
+        .et {
+            font: 13px 'Microsoft YaHei';
+            background: #1a1a1d;
+            color: #e0e0e0;
+            border: 2px solid #c084fc;
+            border-radius: 12px;
+            padding: 14px;
+        }
+        .et-h {
+            font: bold 16px system-ui;
+            color: #f9a8d4;
+            border-bottom: 2px solid #4a4a52;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+        .et-M {
+            font: bold 16px system-ui;
+            color: #f9a8d4;
+            border-bottom: 2px solid #4a4a52;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+        .et-c {
+            background: rgba(192, 132, 252, 0.08);
+            border-radius: 10px;
+            padding: 12px;
+            margin: 10px 0;
+        }
+        .et-n {
+            font: bold 15px system-ui;
+            color: #fcd34d;
+            margin-bottom: 10px;
+        }
+        .et-r {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+        }
+        .et-l {
+            color: #a7a7b2;
+            font-weight: 600;
+            min-width: 100px;
+        }
+        .et-v {
+            color: #f0f0f0;
+            text-align: right;
+        }
+        .et-hl {
+            color: #f9a8d4;
+            font-weight: bold;
+        }
+        .et-w {
+            color: #f87171;
+            font-weight: bold;
+        }
+        .et-b {
+            width: 100%;
+            height: 22px;
+            background: #33333a;
+            border-radius: 20px;
+            position: relative;
+            overflow: hidden;
+            margin: 5px 0;
+        }
+        .et-f {
+            height: 100%;
+            border-radius: 20px;
+            position: absolute;
+        }
+        .et-f1 {
+            background: linear-gradient(90deg, #ec4899, #f9a8d4);
+        }
+        .et-f2 {
+            background: linear-gradient(90deg, #3b82f6, #60a5fa);
+        }
+        .et-f3 {
+            background: linear-gradient(90deg, #ef4444, #f87171);
+        }
+        .et-t {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+        }
+    </style>
+</head>
+<body>
+    <div class="main-wrapper">
+        <div id="tab-world" class="tab-content active">
+            <div class="sp">
+                <div class="sp-header-with-tabs">
+                    <div class="tab-container">
+                        <button class="tab-button active" onclick="switchTab('world', this)">人物状态</button>
+                        <button class="tab-button" onclick="switchTab('tracker', this)">事件追踪器</button>
+                        <button class="collapse-button" onclick="toggleCollapse('world-content')" id="world-collapse-btn">点击收起面板</button>
+                        <span class="time-display">📅时间 第<span id="world-day">1</span>天 <span id="world-date"></span> <span id="world-weekday"></span> <span id="world-time-header"></span></span>
+                    </div>
+                </div>
+            </div>
+            <div class="content-wrapper" id="world-content">
+                <div class="sp content-container">
+                    <div class="sp-title">人物状态</div>
+                    <!-- 李慕雪 -->
+                    <div class="sp-c">
+                        <div class="sp-n">🌸李慕雪</div>
+                        <div class="sp-r"><span class="sp-l">📍位置:</span><span class="sp-v" id="muxue-location"></span></div>
+                        <div class="sp-cl">👗<span class="sp-v" id="muxue-clothes"></span></div>
+                        <div class="sp-th">💭<span class="sp-v" id="muxue-thoughts"></span></div>
+                        <div class="sp-r"><span class="sp-l">💖身体:</span><span class="sp-v" id="muxue-body"></span></div>
+                        <div class="sp-st">
+                            <div class="sp-sr">
+                                <span class="sp-sl">💖好感</span>
+                                <div class="sp-pb" id="muxue-affection-bar">
+                                    <div class="sp-mid" id="muxue-affection-mid" style="display:none"></div>
+                                    <div class="sp-pf pf-pos pf-aff-pos" id="muxue-affection-pos" style="width:0%"></div>
+                                    <div class="sp-pf pf-neg pf-aff-neg" id="muxue-affection-neg" style="display:none;width:0%"></div>
+                                    <div class="sp-pt" id="muxue-affection-text"></div>
+                                </div>
+                            </div>
+                            <div class="sp-sr">
+                                <span class="sp-sl">😈堕落</span>
+                                <div class="sp-pb" id="muxue-corruption-bar">
+                                    <div class="sp-mid" id="muxue-corruption-mid" style="display:none"></div>
+                                    <div class="sp-pf pf-pos pf-cor-pos" id="muxue-corruption-pos" style="width:0%"></div>
+                                    <div class="sp-pf pf-neg pf-cor-neg" id="muxue-corruption-neg" style="display:none;width:0%"></div>
+                                    <div class="sp-pt" id="muxue-corruption-text"></div>
+                                </div>
+                            </div>
+                            <div class="sp-sr">
+                                <span class="sp-sl">❤️爱情</span>
+                                <div class="sp-pb" id="muxue-love-bar">
+                                    <div class="sp-pf pf-pos pf-love" id="muxue-love-pos" style="width:0%"></div>
+                                    <div class="sp-pt" id="muxue-love-text"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 玩家 -->
+                    <div class="sp-c">
+                        <div class="sp-n">👤{{user}}</div>
+                        <div class="sp-r"><span class="sp-l">📍位置:</span><span class="sp-v" id="user-location"></span></div>
+                        <div class="sp-cl">👔<span class="sp-v" id="user-clothes"></span></div>
+                        <div class="sp-th">💭<span class="sp-v" id="user-thoughts"></span></div>
+                        <div class="sp-r"><span class="sp-l">🤦‍♂️身体:</span><span class="sp-v" id="user-body"></span></div>
+                    </div>
+
+                    <!-- 沈煜 -->
+                    <div class="sp-c">
+                        <div class="sp-n">💼沈煜</div>
+                        <div class="sp-r"><span class="sp-l">📍位置:</span><span class="sp-v" id="shenyu-location"></span></div>
+                        <div class="sp-th">💭<span class="sp-v" id="shenyu-thoughts"></span></div>
+                        <div class="sp-st">
+                            <div class="sp-sr">
+                                <span class="sp-sl">🤔怀疑</span>
+                                <div class="sp-pb" id="shenyu-suspicion-bar">
+                                    <div class="sp-pf pf-pos pf-sus" id="shenyu-suspicion-pos" style="width:0%"></div>
+                                    <div class="sp-pt" id="shenyu-suspicion-text"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 梁语嫣 -->
+                    <div class="sp-c">
+                        <div class="sp-n">👩‍🏫梁语嫣</div>
+                        <div class="sp-r"><span class="sp-l">📍位置:</span><span class="sp-v" id="yuyan-location"></span></div>
+                        <div class="sp-cl">🩱<span class="sp-v" id="yuyan-clothes"></span></div>
+                        <div class="sp-th">💭<span class="sp-v" id="yuyan-thoughts"></span></div>
+                        <div class="sp-r"><span class="sp-l">🔥身体:</span><span class="sp-v" id="yuyan-body"></span></div>
+                        <div class="sp-st">
+                            <div class="sp-sr">
+                                <span class="sp-sl">🔥性欲</span>
+                                <div class="sp-pb" id="yuyan-lust-bar">
+                                    <div class="sp-pf pf-pos pf-lust" id="yuyan-lust-pos" style="width:0%"></div>
+                                    <div class="sp-pt" id="yuyan-lust-text"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-tracker" class="tab-content">
+            <div class="sp">
+                <div class="sp-header-with-tabs">
+                    <div class="tab-container">
+                        <button class="tab-button" onclick="switchTab('world', this)">人物状态</button>
+                        <button class="tab-button active" onclick="switchTab('tracker', this)">事件追踪器</button>
+                        <button class="collapse-button" onclick="toggleCollapse('tracker-content')" id="tracker-collapse-btn">点击收起面板</button>
+                        <span class="time-display">📅时间 第<span id="world-day-tracker-header">1</span>天 <span id="worldTimeFull"></span></span>
+                    </div>
+                </div>
+            </div>
+            <div class="content-wrapper" id="tracker-content">
+                <div class="et content-container">
+                    <div class="et-h">事件追踪器</div>
+
+                    <!-- 李慕雪追踪 -->
+                    <div class="et-c">
+                        <div class="et-n">🌸李慕雪</div>
+                        <div class="et-r"><span class="et-l">💖好感状态:</span><span class="et-v"><span class="et-hl" id="muxue-affection-attitude"></span></span></div>
+                        <div class="et-r"><span class="et-l">💖好感进度:</span><span class="et-v">已解锁<strong id="muxue-affection-stage"></strong>个阶段</span></div>
+                        <div class="et-b"><div class="et-f et-f1" id="muxue-affection-tracker-bar" style="width:0%"></div><div class="et-t" id="muxue-affection-tracker-text"></div></div>
+                        <div class="et-r"><span class="et-l">💕今日增量:</span><span class="et-v"><span id="muxue-affection-daily"></span>/2</span></div>
+                        <div class="et-r"><span class="et-l">⭕更新日期:</span><span class="et-v">第<span id="muxue-affection-date"></span>天</span></div>
+                        <div class="et-r"><span class="et-l">🎯下一阶段:</span><span class="et-v" id="muxue-affection-next"></span></div>
+
+                        <div class="et-r" style="margin-top:8px;"><span class="et-l">😈堕落状态:</span><span class="et-v"><span class="et-hl" id="muxue-corruption-attitude"></span></span></div>
+                        <div class="et-r"><span class="et-l">😈堕落进度:</span><span class="et-v">已解锁<strong id="muxue-corruption-stage"></strong>个阶段</span></div>
+                        <div class="et-b"><div class="et-f et-f3" id="muxue-corruption-tracker-bar" style="width:0%"></div><div class="et-t" id="muxue-corruption-tracker-text"></div></div>
+                        <div class="et-r"><span class="et-l">💕今日增量:</span><span class="et-v"><span id="muxue-corruption-daily"></span>/2</span></div>
+                        <div class="et-r"><span class="et-l">⭕更新日期:</span><span class="et-v">第<span id="muxue-corruption-date"></span>天</span></div>
+
+                        <div class="et-r" style="margin-top:8px;"><span class="et-l">❤️爱情状态:</span><span class="et-v"><span class="et-hl" id="muxue-love-attitude"></span></span></div>
+                        <div class="et-b"><div class="et-f et-f1" id="muxue-love-tracker-bar" style="width:0%"></div><div class="et-t" id="muxue-love-tracker-text"></div></div>
+                        <div class="et-r"><span class="et-l">💔今日降低:</span><span class="et-v"><span id="muxue-love-daily"></span>/3</span></div>
+                        <div class="et-r"><span class="et-l">⭕更新日期:</span><span class="et-v">第<span id="muxue-love-date"></span>天</span></div>
+                        <div class="et-r"><span class="et-l">💞下一变化:</span><span class="et-v" id="muxue-love-next"></span></div>
+                    </div>
+
+                    <!-- 沈煜追踪 -->
+                    <div class="et-c">
+                        <div class="et-n">💼沈煜</div>
+                        <div class="et-r"><span class="et-l">🤔怀疑等级:</span><span class="et-v"><span id="shenyu-danger-icon"></span></span></div>
+                        <div class="et-b"><div class="et-f et-f2" id="shenyu-suspicion-tracker-bar" style="width:0%"></div><div class="et-t" id="shenyu-suspicion-tracker-text"></div></div>
+                        <div class="et-r"><span class="et-l">👀当前状态:</span><span class="et-v" id="shenyu-status"></span></div>
+                        <div class="et-r"><span class="et-l">⚠️危险线:</span><span class="et-v" id="shenyu-danger-hint"></span></div>
+                    </div>
+
+                    <!-- 梁语嫣追踪 -->
+                    <div class="et-c">
+                        <div class="et-n">👩‍🏫梁语嫣</div>
+                        <div class="et-r"><span class="et-l">🔥欲望等级:</span><span class="et-v"><span class="et-hl" id="yuyan-lust-status"></span></span></div>
+                        <div class="et-b"><div class="et-f et-f3" id="yuyan-lust-tracker-bar" style="width:0%"></div><div class="et-t" id="yuyan-lust-tracker-text"></div></div>
+                        <div class="et-r"><span class="et-l">📛今日增量:</span><span class="et-v"><span id="yuyan-lust-daily"></span>/2</span></div>
+                        <div class="et-r"><span class="et-l">⭕更新日期:</span><span class="et-v">第<span id="yuyan-lust-date"></span>天</span></div>
+                        <div class="et-r"><span class="et-l">💡已解锁:</span><span class="et-v"><strong id="yuyan-lust-stage"></strong>个阶段</span></div>
+                        <div class="et-r"><span class="et-l">🎯下一阶段:</span><span class="et-v" id="yuyan-lust-next"></span></div>
+                    </div>
+
+                    <!-- 世界追踪 -->
+                    <div class="et-c">
+                        <div class="et-n">🐯世界</div>
+                        <div class="et-r"><span class="et-l">📅当前天数:</span><span class="et-v">第<strong id="world-day-tracker"></strong>天</span></div>
+                        <div class="et-r"><span class="et-l">🗺️剧情进度:</span><span class="et-v" id="world-progress-tracker"></span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // 核心交互函数：需要挂载到 window 对象上才能被 HTML onclick 调用
+
+        function switchTab(tabName, buttonElement) {
+            try {
+                // 移除所有 tab 按钮的 active 类
+                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+
+                // 移除所有内容区域的 active 类
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+                // 激活当前点击的按钮
+                if (buttonElement) {
+                    buttonElement.classList.add('active');
+                }
+
+                // 激活对应的内容区域
+                const targetTab = document.getElementById('tab-' + tabName);
+                if (targetTab) {
+                    targetTab.classList.add('active');
+                }
+            } catch (error) {
+                console.error('切换标签页时出错:', error);
+            }
+        }
+
+        function toggleCollapse(contentId) {
+            try {
+                const contentContainer = document.getElementById(contentId);
+                const buttonId = contentId === 'world-content' ? 'world-collapse-btn' : 'tracker-collapse-btn';
+                const collapseButton = document.getElementById(buttonId);
+
+                if (!contentContainer || !collapseButton) {
+                    return;
+                }
+
+                const isCollapsed = contentContainer.classList.contains('collapsed');
+
+                if (isCollapsed) {
+                    // 展开
+                    contentContainer.classList.remove('collapsed');
+                    collapseButton.innerText = '点击收起面板';
+                } else {
+                    // 收起
+                    contentContainer.classList.add('collapsed');
+                    collapseButton.innerText = '点击展开面板';
+                }
+            } catch (error) {
+                console.error('切换折叠状态时出错:', error);
+            }
+        }
+
+        // 关键修复：将函数挂载到全局 window 对象
+        window.switchTab = switchTab;
+        window.toggleCollapse = toggleCollapse;
+
+        // 核心函数：填充角色数据
+        function populateCharacterData() {
+            const all_variables = getAllVariables();
+
+            // 世界变量
+            const worldTime = _.get(all_variables, 'stat_data.世界.当前时间', '');
+            const worldDay = _.get(all_variables, 'stat_data.世界.天数', 1);
+            const worldProgress = _.get(all_variables, 'stat_data.世界.剧情进度', '初来乍到');
+
+            // 更新世界信息
+            $('#world-day').text(worldDay);
+            $('#world-time-header').text(worldTime);
+            $('#world-day-tracker-header').text(worldDay);
+            $('#world-day-tracker').text(worldDay);
+            $('#worldTimeFull').text(worldTime);
+            $('#world-progress-tracker').text(worldProgress);
+
+            // 李慕雪变量
+            const muxueLocation = _.get(all_variables, 'stat_data.李慕雪.当前地点和动作', '');
+            const muxueClothes = _.get(all_variables, 'stat_data.李慕雪.当前衣物', {});
+            const muxueThoughts = _.get(all_variables, 'stat_data.李慕雪.内心想法', '');
+            const muxueBody = _.get(all_variables, 'stat_data.李慕雪.身体', '');
+            const muxueAffection = _.get(all_variables, 'stat_data.李慕雪.好感度', 0);
+            const muxueAffectionDaily = _.get(all_variables, 'stat_data.李慕雪.好感度今日增量', 0);
+            const muxueAffectionDate = _.get(all_variables, 'stat_data.李慕雪.好感度更新日期', 1);
+            const muxueAffectionStage = _.get(all_variables, 'stat_data.李慕雪.好感度阶段', 0);
+            const muxueAffectionAttitude = _.get(all_variables, 'stat_data.李慕雪.好感态度', '礼貌接纳');
+            const muxueAffectionNext = _.get(all_variables, 'stat_data.李慕雪.好感度下一阶段提示', '需要5点 (5点)');
+            const muxueCorruption = _.get(all_variables, 'stat_data.李慕雪.堕落值', 0);
+            const muxueCorruptionDaily = _.get(all_variables, 'stat_data.李慕雪.堕落值今日增量', 0);
+            const muxueCorruptionDate = _.get(all_variables, 'stat_data.李慕雪.堕落值更新日期', 1);
+            const muxueCorruptionStage = _.get(all_variables, 'stat_data.李慕雪.堕落值阶段', 0);
+            const muxueCorruptionAttitude = _.get(all_variables, 'stat_data.李慕雪.堕落态度', '纯洁无暇');
+            const muxueLove = _.get(all_variables, 'stat_data.李慕雪.爱情值', 100);
+            const muxueLoveDaily = _.get(all_variables, 'stat_data.李慕雪.爱情值今日降低', 0);
+            const muxueLoveDate = _.get(all_variables, 'stat_data.李慕雪.爱情值更新日期', 1);
+            const muxueLoveAttitude = _.get(all_variables, 'stat_data.李慕雪.爱情态度', '贤妻良母');
+            const muxueLoveNext = _.get(all_variables, 'stat_data.李慕雪.爱情下一变化', '降至95点');
+
+            // 更新李慕雪基本信息
+            $('#muxue-location').text(muxueLocation);
+            $('#muxue-thoughts').text(muxueThoughts);
+            $('#muxue-body').text(muxueBody);
+            $('#muxue-clothes').text(formatClothes(muxueClothes));
+
+            // 更新进度条
+            updateProgressBarWithBipolar('muxue-affection-bar', 'muxue-affection-pos', 'muxue-affection-neg', 'muxue-affection-mid', 'muxue-affection-text', muxueAffection, 0, 100);
+            updateProgressBarWithBipolar('muxue-corruption-bar', 'muxue-corruption-pos', 'muxue-corruption-neg', 'muxue-corruption-mid', 'muxue-corruption-text', muxueCorruption, 0, 100);
+            updateProgressBar('muxue-love-bar', 'muxue-love-pos', null, muxueLove, 0, 100);
+            $('#muxue-love-text').text(`${muxueLove}/100`);
+
+            // 更新事件追踪器中的李慕雪信息
+            $('#muxue-affection-attitude').text(muxueAffectionAttitude);
+            $('#muxue-affection-stage').text(muxueAffectionStage);
+            $('#muxue-affection-daily').text(muxueAffectionDaily);
+            $('#muxue-affection-date').text(muxueAffectionDate);
+            $('#muxue-affection-next').text(muxueAffectionNext);
+            const muxueAffectionPercent = Math.min(100, (muxueAffection / 100) * 100);
+            $('#muxue-affection-tracker-bar').css('width', muxueAffectionPercent + '%');
+            $('#muxue-affection-tracker-text').text(`[${muxueAffection}/100]`);
+
+            $('#muxue-corruption-attitude').text(muxueCorruptionAttitude);
+            $('#muxue-corruption-stage').text(muxueCorruptionStage);
+            const muxueCorruptionPercent = Math.min(100, (muxueCorruption / 100) * 100);
+            $('#muxue-corruption-tracker-bar').css('width', muxueCorruptionPercent + '%');
+            $('#muxue-corruption-tracker-text').text(`[${muxueCorruption}/100]`);
+            $('#muxue-corruption-daily').text(muxueCorruptionDaily);
+            $('#muxue-corruption-date').text(muxueCorruptionDate);
+
+            $('#muxue-love-attitude').text(muxueLoveAttitude);
+            $('#muxue-love-daily').text(muxueLoveDaily);
+            $('#muxue-love-date').text(muxueLoveDate);
+            $('#muxue-love-next').text(muxueLoveNext);
+            const muxueLovePercent = Math.min(100, (muxueLove / 100) * 100);
+            $('#muxue-love-tracker-bar').css('width', muxueLovePercent + '%');
+            $('#muxue-love-tracker-text').text(`[${muxueLove}/100]`);
+
+            // {{user}}变量
+            const userLocation = _.get(all_variables, 'stat_data.{{user}}.当前地点和动作', '');
+            const userClothes = _.get(all_variables, 'stat_data.{{user}}.当前衣物', {});
+            const userThoughts = _.get(all_variables, 'stat_data.{{user}}.内心想法', '');
+            const userBody = _.get(all_variables, 'stat_data.{{user}}.身体', '');
+
+            $('#user-location').text(userLocation);
+            $('#user-thoughts').text(userThoughts);
+            $('#user-body').text(userBody);
+            $('#user-clothes').text(formatClothes(userClothes));
+
+            // 沈煜变量
+            const shenyuLocation = _.get(all_variables, 'stat_data.沈煜.当前地点和动作', '');
+            const shenyuThoughts = _.get(all_variables, 'stat_data.沈煜.内心想法', '');
+            const shenyuSuspicion = _.get(all_variables, 'stat_data.沈煜.怀疑值', 0);
+            const shenyuDangerIcon = _.get(all_variables, 'stat_data.沈煜.危险等级图标', '安全');
+            const shenyuStatus = _.get(all_variables, 'stat_data.沈煜.当前状态', '毫无察觉');
+            const shenyuDangerHint = _.get(all_variables, 'stat_data.沈煜.危险线提示', '危险线: 距离下一阶段还有5点容错');
+
+            $('#shenyu-location').text(shenyuLocation);
+            $('#shenyu-thoughts').text(shenyuThoughts);
+            updateProgressBar('shenyu-suspicion-bar', 'shenyu-suspicion-pos', null, shenyuSuspicion, 0, 100);
+            $('#shenyu-suspicion-text').text(`${shenyuSuspicion}/100`);
+            const shenyuSuspicionPercent = Math.min(100, (shenyuSuspicion / 100) * 100);
+            $('#shenyu-suspicion-tracker-bar').css('width', shenyuSuspicionPercent + '%');
+            $('#shenyu-suspicion-tracker-text').text(`[${shenyuSuspicion}/100]`);
+            $('#shenyu-danger-icon').text(shenyuDangerIcon);
+            $('#shenyu-status').text(shenyuStatus);
+            $('#shenyu-danger-hint').text(shenyuDangerHint);
+
+            // 梁语嫣变量
+            const yuyanLocation = _.get(all_variables, 'stat_data.梁语嫣.当前地点和动作', '');
+            const yuyanClothes = _.get(all_variables, 'stat_data.梁语嫣.当前衣物', {});
+            const yuyanThoughts = _.get(all_variables, 'stat_data.梁语嫣.内心想法', '');
+            const yuyanBody = _.get(all_variables, 'stat_data.梁语嫣.身体', '');
+            const yuyanLust = _.get(all_variables, 'stat_data.梁语嫣.性欲值', 0);
+            const yuyanLustDaily = _.get(all_variables, 'stat_data.梁语嫣.性欲值今日增量', 0);
+            const yuyanLustDate = _.get(all_variables, 'stat_data.梁语嫣.性欲值更新日期', 1);
+            const yuyanLustStatus = _.get(all_variables, 'stat_data.梁语嫣.欲望状态', '禁欲状态');
+            const yuyanLustStage = _.get(all_variables, 'stat_data.梁语嫣.性欲阶段', 0);
+            const yuyanLustNext = _.get(all_variables, 'stat_data.梁语嫣.性欲下一阶段提示', '需要5点 (5点)');
+
+            $('#yuyan-location').text(yuyanLocation);
+            $('#yuyan-thoughts').text(yuyanThoughts);
+            $('#yuyan-body').text(yuyanBody);
+            $('#yuyan-clothes').text(formatClothes(yuyanClothes));
+
+            updateProgressBar('yuyan-lust-bar', 'yuyan-lust-pos', null, yuyanLust, 0, 100);
+            $('#yuyan-lust-text').text(`${yuyanLust}/100`);
+            const yuyanLustPercent = Math.min(100, (yuyanLust / 100) * 100);
+            $('#yuyan-lust-tracker-bar').css('width', yuyanLustPercent + '%');
+            $('#yuyan-lust-tracker-text').text(`[${yuyanLust}/100]`);
+            $('#yuyan-lust-daily').text(yuyanLustDaily);
+            $('#yuyan-lust-date').text(yuyanLustDate);
+            $('#yuyan-lust-status').text(yuyanLustStatus);
+            $('#yuyan-lust-stage').text(yuyanLustStage);
+            $('#yuyan-lust-next').text(yuyanLustNext);
+        }
+
+        // 辅助函数：格式化衣物
+        function formatClothes(clothesObj) {
+            try {
+                if (!clothesObj || typeof clothesObj !== 'object') return '暂无';
+                if (Array.isArray(clothesObj) && clothesObj.length > 0) {
+                    clothesObj = clothesObj[0];
+                }
+                const parts = [];
+                const getValue = (field) => {
+                    if (!clothesObj || !clothesObj[field]) return null;
+                    if (Array.isArray(clothesObj[field])) {
+                        return clothesObj[field][0];
+                    }
+                    return clothesObj[field];
+                };
+                const 上身 = getValue('上身');
+                const 下身 = getValue('下身');
+                const 内衣 = getValue('内衣');
+                const 内裤 = getValue('内裤');
+                const 袜子 = getValue('袜子');
+                const 鞋子 = getValue('鞋子');
+                if (上身) parts.push(`上衣：${上身}`);
+                if (下身) parts.push(`裤子：${下身}`);
+                if (内衣) parts.push(`内衣：${内衣}`);
+                if (内裤) parts.push(`内裤：${内裤}`);
+                if (袜子) parts.push(`袜子：${袜子}`);
+                if (鞋子) parts.push(`鞋子：${鞋子}`);
+                return parts.join(' | ') || '暂无';
+            } catch (error) {
+                console.error('格式化衣物信息时出错:', error);
+                return '暂无';
+            }
+        }
+
+        // 辅助函数：更新单向进度条
+        function updateProgressBar(barContainerId, fillBarId, valueDescId, rawValue, min = 0, max = 100, color) {
+            try {
+                const fillBar = document.getElementById(fillBarId);
+                const valueDescDisplay = document.getElementById(valueDescId);
+                if (!fillBar) return;
+
+                let numericValue = parseFloat(rawValue);
+                if (isNaN(numericValue)) {
+                    numericValue = parseFloat(String(rawValue).replace(/[^0-9.-]/g, ''));
+                }
+
+                if (valueDescDisplay) {
+                    if (!isNaN(numericValue)) valueDescDisplay.innerText = numericValue;
+                    else valueDescDisplay.innerText = rawValue;
+                }
+
+                if (!isNaN(numericValue)) {
+                    numericValue = Math.max(min, Math.min(max, numericValue));
+                    const range = max - min;
+                    const percentage = range === 0 ? (numericValue >= max ? 100 : 0) : ((numericValue - min) / range) * 100;
+                    fillBar.style.width = `${Math.max(0, Math.min(100, percentage))}%`;
+                    if (color) fillBar.style.backgroundColor = color;
+                }
+            } catch (error) {
+                console.error('更新进度条时出错:', error);
+            }
+        }
+
+        // 辅助函数：更新双向进度条
+        function updateProgressBarWithBipolar(barContainerId, posBarId, negBarId, midBarId, textId, value, min = 0, max = 100) {
+            try {
+                const numericValue = parseFloat(value);
+                if (isNaN(numericValue)) return;
+
+                const posBar = document.getElementById(posBarId);
+                const negBar = document.getElementById(negBarId);
+                const midBar = document.getElementById(midBarId);
+                const textElem = document.getElementById(textId);
+
+                if (!posBar || !textElem) return;
+
+                const clampedValue = Math.max(min, Math.min(max, numericValue));
+                const range = max - min;
+                const percentage = range === 0 ? 0 : ((clampedValue - min) / range) * 100;
+
+                if (numericValue >= 0) {
+                    posBar.style.display = 'block';
+                    posBar.style.width = `${percentage}%`;
+                    if (negBar) negBar.style.display = 'none';
+                    if (midBar) midBar.style.display = percentage > 0 && percentage < 100 ? 'block' : 'none';
+                } else {
+                    if (negBar) {
+                        negBar.style.display = 'block';
+                        negBar.style.width = `${Math.abs(percentage)}%`;
+                    }
+                    posBar.style.display = 'none';
+                    if (midBar) midBar.style.display = 'block';
+                }
+
+                textElem.innerText = `${numericValue}/${max}`;
+            } catch (error) {
+                console.error('更新双向进度条时出错:', error);
+            }
+        }
+
+        // 初始化函数
+        async function init() {
+            await waitGlobalInitialized('Mvu');
+            populateCharacterData();
+            // 监听变量更新事件
+            eventOn(Mvu.events.VARIABLE_UPDATE_ENDED, () => {
+                populateCharacterData();
+            });
+        }
+
+        $(errorCatched(init));
+    </script>
+</body>
+</html>
