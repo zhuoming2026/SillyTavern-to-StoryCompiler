@@ -8,12 +8,8 @@ story/
 /故事/
 .reasonix/
 
-# 参考文档 / 个人笔记 / 草稿 - 不提交
-/写作/
-/工具/
-/构思/
-/自动检测/
-/通用知识/*
+# 通用知识内容文件（只跟踪 README.md，不跟踪具体资产文件）
+/通用知识/*/
 
 # Python cache
 __pycache__/
@@ -22,6 +18,9 @@ __pycache__/
 # OS files
 .DS_Store
 Thumbs.db
+
+# 构思/ — 设计文档，不提交
+/构思/
 
 # Temp files
 *.tmp
