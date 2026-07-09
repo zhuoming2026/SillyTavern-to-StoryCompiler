@@ -9,7 +9,8 @@ story/
 .reasonix/
 
 # 通用知识内容文件（只跟踪 README.md，不跟踪具体资产文件）
-/通用知识/*/
+/通用知识/*
+!/通用知识/README.md
 
 # Python cache
 __pycache__/
